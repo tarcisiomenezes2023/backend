@@ -27,7 +27,28 @@ app.get('/api/upload', (req, res) => {
   res.send(result);
 });
 
-// Rota para salvar mensagem
+/* Route to Add a new chat */
+app.post('/api/chats', async (req, res) => {
+  const { userId, text } = req.body
+  
+  try { 
+    /* Save the new chat message */
+    const role = "user"; /* Assuming the user creating the message */
+    const chatId = await saveChatMessage(userId, role, text);
+
+    /* Save chat metadata in userChats */
+    const title = text.substring(0, 40); /* Use first 40 characters as the title */
+    await saveUserChat(userId, chatId, title);
+
+    res.status(202).send('Chat and metadata saved successfully');
+    
+  } catch (error) {
+    console.error('Error creating chat', error);
+    res.status(500).send('Error creating chat');
+  }
+});
+
+/* Route to save a message */
 app.post('/api/messages', async (req, res) => {
   const { userId, message, role, title } = req.body; // adding role (user/model) and title
   if (!userId || !message) {
@@ -44,7 +65,7 @@ app.post('/api/messages', async (req, res) => {
   }
 });
 
-// Rota para buscar mensagens do historico
+// Route to fetch chat messages by userId
 app.get('/api/messages/:userId', async (req, res) => {
   const { userId } = req.params; // Extraindo o userId da URL
   if (!userId) {
@@ -52,7 +73,7 @@ app.get('/api/messages/:userId', async (req, res) => {
   }
 
   try {
-    const messages = await fetchChatHistory(userId);
+    const messages = await fetchChatMessages(userId);
     res.status(200).send(messages);
   } catch (error) {
     console.error('Error fetching messages', error);

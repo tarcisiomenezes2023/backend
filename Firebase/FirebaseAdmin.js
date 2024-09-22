@@ -1,13 +1,15 @@
-const admin = require('firebase-admin')
+const admin = require('firebase-admin');
 
-/* Inicialize o Firebase Admin SDK com suas credenciais de servico */
-const serviceAccount = require('./path-to-your-serviceAccountKey.json');
+// Verifica se já existe uma instância inicializada
+if (!admin.apps.length) {
+  const serviceAccount = require('../Config/apollodb-1ce91-firebase-adminsdk-6yh4n-32986bf261.json');
 
-admin.initializeApp({
+  admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    databaseURL: 'https://your-project-id.firebaseio.com' /* Coloque o URL do seu Firestore */
-})
+    databaseURL: 'https://apollodb-1ce91.firebaseio.com',
+  });
+}
 
-const db = admin.firestore()
+const db = admin.firestore();
 
-module.exports = { db }
+module.exports = { db };

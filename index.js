@@ -3,7 +3,7 @@ const cors = require('cors');
 const ImageKit = require('imagekit');
 const { saveChatMessage, fetchChatMessages, saveUserChat, fetchUserChats } = require('./Firebase/Utilities/FirebaseUtilities');
 const { db } = require('./Firebase/FirebaseAdmin'); // Importando apenas o Firestore
-
+const { ClerkExpressRequireAuth } = require('@clerk/clerk-sdk-node');
 const port = process.env.PORT || 3000;
 const app = express();
 
@@ -12,7 +12,14 @@ app.use(express.json());
 
 app.use(cors({
   origin: process.env.CLIENT_URL, // Garantindo que a origem seja seu frontend
+  credentials: true, /* kk */
 }));
+
+/* Configuration for CLERK environmental variables */
+if (!process.env.CLERK_PUBLISHABLE_KEY ) {
+  console.error('Missing Clerk API key!')
+  process.exit(1);
+}
 
 // Configurando ImageKit
 const imagekit = new ImageKit({
@@ -23,13 +30,21 @@ const imagekit = new ImageKit({
 
 // Rota para autenticação da ImageKit
 app.get('/api/upload', (req, res) => {
-  const result = imagekit.getAuthenticationParameters();
+  const result = imagekit.getAuthenticationParameters(); /* kk */
   res.send(result);
 });
 
+/* app.get('/api/test', ClerkExpressRequireAuth(), (req, res) => {
+  const userId = req.auth.userId
+  console.log(`User authenticated: ${userId}`)
+  console.log("Success") /* kk */
+/*   res.send('Success')
+}) */ 
+
 /* Route to Add a new chat */
-app.post('/api/chats', async (req, res) => {
-  const { userId, text } = req.body
+app.post('/api/chats', ClerkExpressRequireAuth(), async (req, res) => {
+  const userId = req.auth.userId; 
+  const { text } = req.body
   
   try { 
     /* Save the new chat message */
@@ -96,6 +111,29 @@ app.get('/api/userchats/:userId', async (req, res) => {
     res.status(500).send('Error fetching user chats')
   }
 });
+
+app.get("/api/userschats", ClerkExpressRequireAuth(), async (req, res) => {
+  const userId = req.auth.userId; /* Get the authenticated user ID from Clerk */
+  try {
+    /* Fetch user chats Firestore */
+    const userChatsDoc = await db.collection('userChats').doc(userId).get()
+
+    if (!userChatsDoc.exists) {
+      return res.status(404).send('User chats not found')
+    }
+    /* Retrieve and send the chats array */
+    const userChats = userChatsDoc.data().chats || [];  
+    res.status(200).send(userChats[0].chats);
+  } catch (error) {
+    console.error('Error fetching user chats', error)
+    res.status(500).send('Error fetching user chats')
+  }
+})
+
+app.use((err, req, res, next) => {
+  console.error('Error handling request:', err.stack)
+  res.status(500).send('Something broke!') 
+})
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);

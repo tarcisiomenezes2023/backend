@@ -6,6 +6,7 @@ const { db } = require('./Firebase/FirebaseAdmin'); // Importando apenas o Fires
 const { ClerkExpressRequireAuth } = require('@clerk/clerk-sdk-node');
 const port = process.env.PORT || 3000;
 const app = express();
+require('dotenv').config();
 
 // Permite o uso de JSON no corpo das requisições
 app.use(express.json());
@@ -16,8 +17,10 @@ app.use(cors({
 }));
 
 /* Configuration for CLERK environmental variables */
-if (!process.env.CLERK_PUBLISHABLE_KEY ) {
-  console.error('Missing Clerk API key!')
+console.log('Clerk Publishable Key:', process.env.CLERK_PUBLISHABLE_KEY);
+console.log('Clerk Secret Key:', process.env.CLERK_SECRET_KEY);
+if (!process.env.CLERK_PUBLISHABLE_KEY || !process.env.CLERK_SECRET_KEY) {
+  console.error('Missing Clerk API key!');
   process.exit(1);
 }
 
@@ -112,23 +115,33 @@ app.get('/api/userchats/:userId', async (req, res) => {
   }
 });
 
-app.get("/api/userschats", ClerkExpressRequireAuth(), async (req, res) => {
-  const userId = req.auth.userId; /* Get the authenticated user ID from Clerk */
+app.get("/api/userchats", ClerkExpressRequireAuth(), async (req, res) => {
+  const userId = req.auth.userId;  
   try {
-    /* Fetch user chats Firestore */
-    const userChatsDoc = await db.collection('userChats').doc(userId).get()
+    const userChatsDoc = await db.collection('userChats').doc(userId).get();
 
     if (!userChatsDoc.exists) {
-      return res.status(404).send('User chats not found')
+      return res.status(404).send('User chats not found');
     }
-    /* Retrieve and send the chats array */
-    const userChats = userChatsDoc.data().chats || [];  
-    res.status(200).send(userChats[0].chats);
+    const userChats = userChatsDoc.data().chats || [];
+    res.status(200).send(userChats);
   } catch (error) {
-    console.error('Error fetching user chats', error)
-    res.status(500).send('Error fetching user chats')
+    console.error('Error fetching user chats', error);
+    res.status(500).send('Error fetching user chats');
   }
-})
+});
+
+app.get("/api/chats/:id", ClerkExpressRequireAuth(), async (req, res) => {
+  const userId = req.auth.userId;  
+  try {
+    const chat = await ChatList.findOne({ _id: req.params.id, userId });
+
+    res.status(200).send(chat);
+  } catch (error) {
+    console.error('Error fetching user chats', error);
+    res.status(500).send('Error fetching user chats');
+  }
+});
 
 app.use((err, req, res, next) => {
   console.error('Error handling request:', err.stack)

@@ -143,6 +143,32 @@ app.get("/api/chats/:id", ClerkExpressRequireAuth(), async (req, res) => {
   }
 });
 
+/* save a new message and send it to the database */
+app.put('/api/chats/:id', ClerkExpressRequireAuth(), async (req, res) => {
+  const userId = req.auth.userId;  
+
+  const { question, answer, img } = req.body;
+
+  const newItems = [
+    ...(question ? [{ role: "user", parts: [{ text: question }], ...img(img && { img }) }] : []),
+    { role: "model", parts: [{ text: answer}] },
+  ] 
+  try { 
+    const updatedChat = await Chat.updateOne({ _id: req.params.id, userId}, {
+      $push: {
+        history: {
+          $each: newItems,
+        },
+      },
+    })
+    res.status(200).send('Chat updated successfully')
+
+  } catch (error) {
+    console.error('Error updating chat', error)
+    res.status(500).send('Error updating chat')
+  }
+})
+
 app.use((err, req, res, next) => {
   console.error('Error handling request:', err.stack)
   res.status(500).send('Something broke!') 

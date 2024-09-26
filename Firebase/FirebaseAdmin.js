@@ -1,15 +1,16 @@
 const admin = require('firebase-admin');
 
-// Verifica se já existe uma instância inicializada
+// Check if Firebase Admin has already been initialized
 if (!admin.apps.length) {
   const serviceAccount = require('../Config/apollodb-1ce91-firebase-adminsdk-6yh4n-32986bf261.json');
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    databaseURL: 'https://apollodb-1ce91.firebaseio.com',
+    // The databaseURL is not required for Firestore, so you can remove it or keep it if needed
   });
 }
 
+// Get Firestore instance
 const db = admin.firestore();
 
 module.exports = { db };

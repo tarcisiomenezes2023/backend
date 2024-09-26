@@ -2,81 +2,60 @@ const express = require('express');
 const cors = require('cors');
 const ImageKit = require('imagekit');
 const { saveChatMessage, fetchChatMessages, saveUserChat, fetchUserChats } = require('./Firebase/Utilities/FirebaseUtilities');
-const { db } = require('./Firebase/FirebaseAdmin'); // Importando apenas o Firestore
+const { db } = require('./Firebase/FirebaseAdmin'); // Firebase setup
 const { ClerkExpressRequireAuth } = require('@clerk/clerk-sdk-node');
 const port = process.env.PORT || 3000;
 const app = express();
 require('dotenv').config();
 
-// Permite o uso de JSON no corpo das requisições
 app.use(express.json());
-
 app.use(cors({
-  origin: process.env.CLIENT_URL, // Garantindo que a origem seja seu frontend
-  credentials: true, /* kk */
+  origin: process.env.CLIENT_URL,
+  credentials: true,
 }));
 
-/* Configuration for CLERK environmental variables */
-console.log('Clerk Publishable Key:', process.env.CLERK_PUBLISHABLE_KEY);
-console.log('Clerk Secret Key:', process.env.CLERK_SECRET_KEY);
-if (!process.env.CLERK_PUBLISHABLE_KEY || !process.env.CLERK_SECRET_KEY) {
-  console.error('Missing Clerk API key!');
-  process.exit(1);
-}
-
-// Configurando ImageKit
+// Configuration for ImageKit
 const imagekit = new ImageKit({
   publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
   privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
   urlEndpoint: process.env.IMAGEKIT_ENDPOINT,
 });
 
-// Rota para autenticação da ImageKit
 app.get('/api/upload', (req, res) => {
-  const result = imagekit.getAuthenticationParameters(); /* kk */
+  const result = imagekit.getAuthenticationParameters();
   res.send(result);
 });
 
-/* app.get('/api/test', ClerkExpressRequireAuth(), (req, res) => {
-  const userId = req.auth.userId
-  console.log(`User authenticated: ${userId}`)
-  console.log("Success") /* kk */
-/*   res.send('Success')
-}) */ 
-
-/* Route to Add a new chat */
+// Route to add a new chat
 app.post('/api/chats', ClerkExpressRequireAuth(), async (req, res) => {
-  const userId = req.auth.userId; 
-  const { text } = req.body
-  
-  try { 
-    /* Save the new chat message */
-    const role = "user"; /* Assuming the user creating the message */
+  const userId = req.auth.userId;
+  const { text } = req.body;
+
+  try {
+    const role = "user";
     const chatId = await saveChatMessage(userId, role, text);
 
-    /* Save chat metadata in userChats */
-    const title = text.substring(0, 40); /* Use first 40 characters as the title */
+    const title = text.substring(0, 40);
     await saveUserChat(userId, chatId, title);
 
-    res.status(202).send('Chat and metadata saved successfully');
-    
+    res.status(202).json({ message: 'Chat and metadata saved successfully' });
   } catch (error) {
     console.error('Error creating chat', error);
     res.status(500).send('Error creating chat');
   }
 });
 
-/* Route to save a message */
+// Route to save a message
 app.post('/api/messages', async (req, res) => {
-  const { userId, message, role, title } = req.body; // adding role (user/model) and title
+  const { userId, message, role, title } = req.body;
   if (!userId || !message) {
     return res.status(400).send('User ID and message are required');
   }
-  
+
   try {
-    const chatId = await saveChatMessage(userId, role, message); /* Save the chat message */
-    await saveUserChat(userId, chatId, title) /* Save metadata for user chats */
-    res.status(200).send('Message and chat metadata saved successfully');
+    const chatId = await saveChatMessage(userId, role, message);
+    await saveUserChat(userId, chatId, title);
+    res.status(200).json('Message and chat metadata saved successfully');
   } catch (error) {
     console.error('Error saving message', error);
     res.status(500).send('Error saving message');
@@ -85,38 +64,38 @@ app.post('/api/messages', async (req, res) => {
 
 // Route to fetch chat messages by userId
 app.get('/api/messages/:userId', async (req, res) => {
-  const { userId } = req.params; // Extraindo o userId da URL
+  const { userId } = req.params;
   if (!userId) {
     return res.status(400).send('User ID is required');
   }
 
   try {
     const messages = await fetchChatMessages(userId);
-    res.status(200).send(messages);
+    res.status(200).json(messages);
   } catch (error) {
     console.error('Error fetching messages', error);
     res.status(500).send('Error fetching messages');
   }
 });
 
-/* Route to fetch user chats (metadata) */
+// Route to fetch user chats (metadata)
 app.get('/api/userchats/:userId', async (req, res) => {
-  const {  userId } = req.params;
+  const { userId } = req.params;
   if (!userId) {
-    return res.status(400).send('user ID is required')
+    return res.status(400).send('User ID is required');
   }
 
   try {
-    const chats = await fetchUserChats(userId)
-    res.status(200).send(chats);
+    const chats = await fetchUserChats(userId);
+    res.status(200).json(chats);
   } catch (error) {
-    console.error('Error fetching user chats', error)
-    res.status(500).send('Error fetching user chats')
+    console.error('Error fetching user chats', error);
+    res.status(500).send('Error fetching user chats');
   }
 });
 
 app.get("/api/userchats", ClerkExpressRequireAuth(), async (req, res) => {
-  const userId = req.auth.userId;  
+  const userId = req.auth.userId;
   try {
     const userChatsDoc = await db.collection('userChats').doc(userId).get();
 
@@ -124,7 +103,7 @@ app.get("/api/userchats", ClerkExpressRequireAuth(), async (req, res) => {
       return res.status(404).send('User chats not found');
     }
     const userChats = userChatsDoc.data().chats || [];
-    res.status(200).send(userChats);
+    res.status(200).json(userChats);
   } catch (error) {
     console.error('Error fetching user chats', error);
     res.status(500).send('Error fetching user chats');
@@ -132,47 +111,72 @@ app.get("/api/userchats", ClerkExpressRequireAuth(), async (req, res) => {
 });
 
 app.get("/api/chats/:id", ClerkExpressRequireAuth(), async (req, res) => {
-  const userId = req.auth.userId;  
+  const userId = req.auth.userId;
   try {
-    const chat = await ChatList.findOne({ _id: req.params.id, userId });
-
-    res.status(200).send(chat);
+    const chatDoc = await db.collection('chats').doc(req.params.id).get();
+    if (!chatDoc.exists || chatDoc.data().userId !== userId) {
+      return res.status(404).send('Chat not found');
+    }
+    res.status(200).json(chatDoc.data());
   } catch (error) {
-    console.error('Error fetching user chats', error);
-    res.status(500).send('Error fetching user chats');
+    console.error('Error fetching chat', error);
+    res.status(500).send('Error fetching chat');
   }
 });
 
-/* save a new message and send it to the database */
+// Update chat using Firebase
 app.put('/api/chats/:id', ClerkExpressRequireAuth(), async (req, res) => {
-  const userId = req.auth.userId;  
-
+  const userId = req.auth.userId;
   const { question, answer, img } = req.body;
 
   const newItems = [
-    ...(question ? [{ role: "user", parts: [{ text: question }], ...img(img && { img }) }] : []),
-    { role: "model", parts: [{ text: answer}] },
-  ] 
-  try { 
-    const updatedChat = await Chat.updateOne({ _id: req.params.id, userId}, {
-      $push: {
-        history: {
-          $each: newItems,
-        },
-      },
-    })
-    res.status(200).send('Chat updated successfully')
+    ...(question ? [{ role: "user", parts: [{ text: question }], ...(img && { img }) }] : []),
+    { role: "model", parts: [{ text: answer }] },
+  ];
 
+  try {
+    const chatRef = db.collection('chats').doc(req.params.id);
+    const chatDoc = await chatRef.get();
+
+    if (!chatDoc.exists || chatDoc.data().userId !== userId) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
+
+    await chatRef.update({
+      history: admin.firestore.FieldValue.arrayUnion(...newItems)
+    });
+
+    res.status(200).json('Chat updated successfully');
   } catch (error) {
-    console.error('Error updating chat', error)
-    res.status(500).send('Error updating chat')
+    console.error('Error updating chat', error);
+    res.status(500).send('Error updating chat');
   }
-})
+});
+
+app.put('/api/chats/:id', async (req, res) => {
+  const { id } = req.params;
+  const { text } = req.body;
+  try {
+    const chatRef = db.collection('chats').doc(id);
+
+    const chat = await chatRef.get();
+    if (!chat.exists) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
+
+    await chatRef.update({ text });
+
+    res.status(200).json({ message: "Chat successfully updated" });
+  } catch (error) {
+    console.error('Error updating chat:', error);
+    res.status(500).json({ message: "Error updating chat" });
+  }
+});
 
 app.use((err, req, res, next) => {
-  console.error('Error handling request:', err.stack)
-  res.status(500).send('Something broke!') 
-})
+  console.error('Error handling request:', err.stack);
+  res.status(500).json('Something broke!');
+});
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
